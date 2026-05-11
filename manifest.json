@@ -1,13 +1,14 @@
 {
-  "name": "TechCompare MSK-DYU",
+  "name": "TechCompare: MSK-DYU",
   "short_name": "TechCompare",
-  "start_url": ".",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0f172a",
-  "description": "Сравнение цен Москва - Душанбе",
+  "theme_color": "#1e293b",
+  "description": "Сравнение цен и калькулятор доставки Москва-Душанбе",
   "icons": [
     {
-      "src": "icon.png",
+      "src": "[https://cdn-icons-png.flaticon.com/512/2991/2991148.png](https://cdn-icons-png.flaticon.com/512/2991/2991148.png)",
       "sizes": "512x512",
       "type": "image/png"
     }
