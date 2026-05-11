@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PriceCompare: Москва - Душанбе</title>
+    <!-- Подключение PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1e293b">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .gradient-bg { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); }
+        .pattern-overlay {
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2v-4h4v-2h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2v-4h4v-2H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        }
+        .result-card:hover { transform: translateY(-4px); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        
+        #console-log { height: 100px; overflow-y: auto; font-family: monospace; font-size: 11px; background: #111; color: #0f0; }
+
+        #successModal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(4px);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body class="pattern-overlay min-h-screen">
+
+    <!-- Модальное окно после заказа -->
+    <div id="successModal">
+        <div class="bg-white p-8 rounded-3xl max-w-md w-full mx-4 text-center shadow-2xl transform transition-all scale-95 opacity-0 transition-all duration-300" id="modalContent">
+            <div class="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl">
+                <i class="fas fa-check"></i>
+            </div>
+            <h3 class="text-2xl font-bold text-slate-800 mb-2">Заказ принят!</h3>
+            <p id="orderNotificationText" class="text-slate-600 mb-6 leading-relaxed">
+                <!-- Текст будет вставлен через JS -->
+            </p>
+            <div class="w-full bg-slate-100 h-1 rounded-full overflow-hidden">
+                <div id="progressTimer" class="bg-emerald-500 h-full w-full transition-all duration-100 linear"></div>
+            </div>
+            <p class="text-[10px] text-slate-400 mt-4 uppercase tracking-widest">Перенаправление на главную через 5 сек</p>
+        </div>
+    </div>
+
+    <!-- Навигация -->
+    <nav class="gradient-bg text-white p-4 sticky top-0 z-50 shadow-lg">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold flex items-center">
+                <i class="fas fa-microchip mr-2 text-blue-400"></i> TechCompare <span class="hidden sm:inline ml-2 text-sm font-normal text-slate-400 text-[10px]">MSK-DYU</span>
+            </h1>
+            <div class="flex space-x-4">
+                <button onclick="exportToMarkdown()" class="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded-md transition border border-slate-600">
+                    <i class="fas fa-save mr-1"></i> Сохранить .md
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto px-4 py-8">
+        <!-- Поиск -->
+        <section id="searchSection" class="max-w-3xl mx-auto mb-12">
+            <div class="bg-white p-6 rounded-2xl shadow-xl border border-slate-100">
+                <h2 class="text-2xl font-semibold mb-4 text-slate-800">Поиск лучшей цены</h2>
+                <p class="text-sm text-slate-500 mb-6 italic">Например: iPhone 15 Pro 256GB Black Titanium</p>
+                
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <input type="text" id="searchQuery" 
+                        placeholder="Название + Модель + Характеристики"
+                        class="flex-grow p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition text-lg">
+                    <button onclick="initiateSearch()" id="searchBtn"
+                        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-xl transition shadow-lg shadow-blue-200 flex items-center justify-center">
+                        <i class="fas fa-search mr-2"></i> ПОИСК
+                    </button>
+                </div>
+                
+                <div id="loader" class="hidden mt-6 text-center">
+                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600"></div>
+                    <p class="text-xs text-slate-400 mt-2">Опрашиваем Google и Яндекс...</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Сравнение цен -->
+        <section id="resultsSection" class="hidden grid grid-cols-1 md:grid-cols-2 gap-8 mb-12 animate-fadeIn">
+            <!-- Москва -->
+            <div>
+                <div class="flex items-center mb-4 px-2">
+                    <span class="bg-red-100 text-red-600 p-2 rounded-lg mr-3"><i class="fas fa-map-marker-alt"></i></span>
+                    <h3 class="text-xl font-bold text-slate-800">Цена Москва (РФ)</h3>
+                </div>
+                <div id="mskResults" class="space-y-4"></div>
+            </div>
+
+            <!-- Душанбе -->
+            <div>
+                <div class="flex items-center mb-4 px-2">
+                    <span class="bg-emerald-100 text-emerald-600 p-2 rounded-lg mr-3"><i class="fas fa-map-marker-alt"></i></span>
+                    <h3 class="text-xl font-bold text-slate-800">Цена Душанбе (РТ)</h3>
+                </div>
+                <div id="dyuResults" class="space-y-4"></div>
+            </div>
+        </section>
+
+        <!-- Блок доставки -->
+        <section id="deliverySection" class="hidden max-w-4xl mx-auto mb-12 bg-white rounded-3xl shadow-2xl border-2 border-blue-50 overflow-hidden animate-fadeIn">
+            <div class="bg-blue-600 p-6 text-white">
+                <h3 class="text-xl font-bold flex items-center">
+                    <i class="fas fa-shipping-fast mr-3"></i> Оформление и Расчет доставки
+                </h3>
+                <p class="text-blue-100 text-sm mt-1">Выбранный товар: <span id="selectedItemName" class="font-bold underline"></span></p>
+            </div>
+
+            <div class="p-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Ввод данных -->
+                <div class="space-y-6">
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-2">Тип доставки</label>
+                        <div class="grid grid-cols-2 gap-4">
+                            <label class="relative border-2 border-slate-100 rounded-xl p-4 flex items-center cursor-pointer hover:bg-slate-50 transition">
+                                <input type="radio" name="deliveryType" value="air" checked class="mr-3 w-5 h-5">
+                                <div>
+                                    <span class="block font-bold">Авиа (1)</span>
+                                    <span class="text-xs text-slate-400">3-5 дней</span>
+                                </div>
+                            </label>
+                            <label class="relative border-2 border-slate-100 rounded-xl p-4 flex items-center cursor-pointer hover:bg-slate-50 transition">
+                                <input type="radio" name="deliveryType" value="auto" class="mr-3 w-5 h-5">
+                                <div>
+                                    <span class="block font-bold">Авто (2)</span>
+                                    <span class="text-xs text-slate-400">10-15 дней</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-2">Габариты (Д х Ш х В, см)</label>
+                        <div class="grid grid-cols-3 gap-2">
+                            <input type="number" id="dimL" placeholder="Д" class="p-3 bg-slate-50 border border-slate-200 rounded-lg w-full">
+                            <input type="number" id="dimW" placeholder="Ш" class="p-3 bg-slate-50 border border-slate-200 rounded-lg w-full">
+                            <input type="number" id="dimH" placeholder="В" class="p-3 bg-slate-50 border border-slate-200 rounded-lg w-full">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-2">Мессенджер</label>
+                            <select id="contactType" class="p-3 bg-slate-50 border border-slate-200 rounded-lg w-full">
+                                <option value="WhatsApp">WhatsApp</option>
+                                <option value="Telegram">Telegram</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-2">Номер / Ник</label>
+                            <input type="text" id="contactInfo" placeholder="+992..." class="p-3 bg-slate-50 border border-slate-200 rounded-lg w-full">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Итоги -->
+                <div class="bg-slate-50 p-6 rounded-2xl flex flex-col justify-between">
+                    <div>
+                        <h4 class="font-bold text-slate-800 mb-4">Детали заказа</h4>
+                        <textarea id="orderComment" placeholder="Комментарий к заказу..." class="w-full p-4 border border-slate-200 rounded-xl h-24 mb-4"></textarea>
+                        
+                        <div class="space-y-2 border-t pt-4 border-slate-200">
+                            <div class="flex justify-between text-sm">
+                                <span>Цена товара:</span>
+                                <span id="summaryPrice" class="font-bold">0 $</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button onclick="submitOrder()" class="mt-6 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl transition flex items-center justify-center shadow-lg shadow-emerald-100">
+                        ОФОРМИТЬ ЗАКАЗ <i class="fas fa-arrow-right ml-2"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Консоль отладки -->
+    <div class="fixed bottom-24 right-4 w-64 md:w-80 opacity-90 hidden sm:block z-40">
+        <div id="console-log" class="p-2 rounded-t-lg shadow-2xl">
+            <div>> System Ready...</div>
+        </div>
+        <div class="bg-black text-[10px] text-white px-2 py-1 rounded-b-lg flex justify-between">
+            <span>DEBUG CONSOLE</span>
+            <span onclick="this.parentElement.previousElementSibling.innerHTML='> Logs cleared'" class="cursor-pointer underline">Clear</span>
+        </div>
+    </div>
+
+    <!-- Футер -->
+    <footer class="gradient-bg text-white py-12 px-4 mt-20">
+        <div class="container mx-auto grid grid-cols-1 md:grid-cols-3 gap-12 text-center md:text-left">
+            <div>
+                <h4 class="text-lg font-bold mb-4 border-b border-slate-700 pb-2">О сервисе</h4>
+                <p class="text-slate-400 text-sm leading-relaxed"> TechCompare — ваш персональный помощник в мире гаджетов. Помогаем находить лучшие предложения в Москве и Душанбе. </p>
+            </div>
+            <div>
+                <h4 class="text-lg font-bold mb-4 border-b border-slate-700 pb-2">Контакты</h4>
+                <ul class="text-slate-400 text-sm space-y-3">
+                    <li><i class="fab fa-whatsapp mr-2 text-green-400 text-lg"></i> +992 000 000 000</li>
+                    <li><i class="fab fa-telegram mr-2 text-blue-400 text-lg"></i> @tech_compare_tj</li>
+                </ul>
+            </div>
+            <div>
+                <h4 class="text-lg font-bold mb-4 border-b border-slate-700 pb-2">Инструменты</h4>
+                <div class="flex flex-col space-y-2 text-sm text-slate-400">
+                    <a href="#" class="hover:text-blue-400 transition">Политика конфиденциальности</a>
+                    <a href="#" class="hover:text-blue-400 transition">Тарифы доставки</a>
+                </div>
+            </div>
+        </div>
+        <div class="text-center mt-12 text-slate-500 text-xs"> &copy; 2024 TechCompare SPA. Built for MSK-DYU. </div>
+    </footer>
+
+    <script>
+        let searchHistory = [];
+        let selectedItem = null;
+
+        function logToScreen(msg, isError = false) {
+            const consoleDiv = document.getElementById('console-log');
+            const time = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = isError ? 'text-red-500' : 'text-green-400';
+            entry.innerHTML = `<span class="text-slate-500">[${time}]</span> > ${msg}`;
+            consoleDiv.appendChild(entry);
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+
+        async function initiateSearch() {
+            const query = document.getElementById('searchQuery').value.trim();
+            if(!query) {
+                logToScreen("Ошибка: Пустой запрос", true);
+                return;
+            }
+
+            document.getElementById('loader').classList.remove('hidden');
+            document.getElementById('searchBtn').disabled = true;
+            
+            // Имитация парсинга
+            setTimeout(() => {
+                const results = generateMockResults(query);
+                displayResults(results);
+                searchHistory.push({ timestamp: new Date().toISOString(), query: query, results: results });
+
+                document.getElementById('loader').classList.add('hidden');
+                document.getElementById('searchBtn').disabled = false;
+                document.getElementById('resultsSection').classList.remove('hidden');
+                logToScreen("Данные получены из Яндекс.Маркет и Google Shopping.");
+                document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+            }, 1200);
+        }
+
+        function generateMockResults(query) {
+            const basePrice = Math.floor(Math.random() * (1200 - 800) + 800);
+            return {
+                msk: [ { store: "Яндекс.Маркет", price: basePrice + 50, currency: "$", model: query, engine: 'yandex' } ],
+                dyu: [ { store: "Zira.tj", price: basePrice + 200, currency: "$", model: query, engine: 'google' } ]
+            };
+        }
+
+        function displayResults(data) {
+            const mskContainer = document.getElementById('mskResults');
+            const dyuContainer = document.getElementById('dyuResults');
+            mskContainer.innerHTML = data.msk.map(item => createCard(item, 'border-slate-200')).join('');
+            dyuContainer.innerHTML = data.dyu.map(item => createCard(item, 'border-blue-100 bg-blue-50/30')).join('');
+        }
+
+        function createCard(item, borderClass) {
+            const searchUrl = item.engine === 'yandex' 
+                ? `https://yandex.ru/search/?text=${encodeURIComponent(item.model + ' цена')}`
+                : `https://www.google.com/search?q=${encodeURIComponent(item.model + ' цена')}`;
+
+            return `
+                <div class="result-card bg-white p-4 rounded-xl border-2 ${borderClass} shadow-sm transition group">
+                    <div onclick="selectItem('${item.store}', ${item.price}, '${item.model}')" class="cursor-pointer">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <span class="text-xs font-bold text-blue-600 uppercase">${item.store}</span>
+                                <h4 class="font-semibold text-slate-800">${item.model}</h4>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-xl font-bold text-slate-900">${item.price} ${item.currency}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-3 pt-3 border-t border-slate-100 flex justify-end">
+                        <a href="${searchUrl}" target="_blank" class="text-xs text-blue-500 hover:underline flex items-center">
+                            Перейти к источнику <i class="fas fa-external-link-alt ml-1"></i>
+                        </a>
+                    </div>
+                </div>`;
+        }
+
+        function selectItem(store, price, model) {
+            selectedItem = { store, price, model };
+            document.getElementById('selectedItemName').innerText = `${store} - ${model}`;
+            document.getElementById('summaryPrice').innerText = `${price} $`;
+            document.getElementById('deliverySection').classList.remove('hidden');
+            document.getElementById('deliverySection').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            logToScreen(`Выбран товар для расчета: ${model}`);
+        }
+
+        function submitOrder() {
+            const contact = document.getElementById('contactInfo').value.trim();
+            if(!contact) {
+                logToScreen("Ошибка: Контакт не указан", true);
+                alert("Укажите ваш номер или ник");
+                return;
+            }
+
+            const now = new Date();
+            const d = String(now.getDate()).padStart(2, '0') + String(now.getMonth() + 1).padStart(2, '0') + String(now.getFullYear()).slice(-2);
+            const t = String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0');
+            const deliveryType = document.querySelector('input[name="deliveryType"]:checked').value === 'air' ? '1' : '2';
+            const contactSuffix = contact.slice(-3);
+
+            const orderID = `${d}-${t}-${deliveryType}_${contactSuffix}`;
+
+            // Показ модалки
+            const modal = document.getElementById('successModal');
+            const modalContent = document.getElementById('modalContent');
+            const textEl = document.getElementById('orderNotificationText');
+            const progress = document.getElementById('progressTimer');
+            
+            textEl.innerHTML = `Благодарим за заявку № <strong>${orderID}</strong>, мы свяжемся с вами для уточнения заказа.`;
+            modal.style.display = 'flex';
+            
+            // Плавное появление
+            setTimeout(() => {
+                modalContent.style.opacity = '1';
+                modalContent.style.transform = 'scale(1)';
+            }, 10);
+
+            logToScreen(`ЗАКАЗ ОФОРМЛЕН: ${orderID}`);
+
+            let width = 100;
+            const interval = setInterval(() => {
+                width -= 1;
+                progress.style.width = width + '%';
+                if(width <= 0) {
+                    clearInterval(interval);
+                    resetApp();
+                }
+            }, 50); // 50ms * 100 = 5000ms (5 сек)
+        }
+
+        function resetApp() {
+            const modal = document.getElementById('successModal');
+            const modalContent = document.getElementById('modalContent');
+            
+            modalContent.style.opacity = '0';
+            modalContent.style.transform = 'scale(0.95)';
+            
+            setTimeout(() => {
+                modal.style.display = 'none';
+                document.getElementById('resultsSection').classList.add('hidden');
+                document.getElementById('deliverySection').classList.add('hidden');
+                document.getElementById('searchQuery').value = '';
+                document.getElementById('contactInfo').value = '';
+                document.getElementById('orderComment').value = '';
+                document.getElementById('dimL').value = '';
+                document.getElementById('dimW').value = '';
+                document.getElementById('dimH').value = '';
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                logToScreen("Система сброшена.");
+            }, 300);
+        }
+
+        function exportToMarkdown() {
+            if(searchHistory.length === 0) {
+                logToScreen("Ошибка: Нет данных для сохранения", true);
+                return;
+            }
+            let mdContent = `# TechCompare History - ${new Date().toLocaleDateString()}\n\n`;
+            searchHistory.forEach((e, index) => {
+                mdContent += `### [${index + 1}] Запрос: ${e.query}\n`;
+                mdContent += `- **Москва**: ${e.results.msk[0].price} ${e.results.msk[0].currency}\n`;
+                mdContent += `- **Душанбе**: ${e.results.dyu[0].price} ${e.results.dyu[0].currency}\n`;
+                mdContent += `- **Дата**: ${e.timestamp}\n\n---\n\n`;
+            });
+            const blob = new Blob([mdContent], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `tech_compare_history.md`;
+            a.click();
+            logToScreen("История сохранена в файл .md");
+        }
+    </script>
+</body>
+</html>
